@@ -272,10 +272,262 @@ graph TB
     style Escalations fill:#FFF3E0,stroke:#FB8C00,stroke-width:2px
     style Timeline fill:#E1F5FE,stroke:#039BE5,stroke-width:2px
 ```
+Crime Data & Heatmap Tables
+```mermaid
+graph TB
+    subgraph Crime Intelligence
+        Incidents[Crime Incidents<br/>- incident_id PK<br/>- source_id FK<br/>- location GEOGRAPHY<br/>- incident_type<br/>- severity<br/>- verified]
+        
+        Sources[Crime Sources<br/>- source_id PK<br/>- source_name<br/>- source_type<br/>- reliability_score<br/>- is_active]
+        
+        Categories[Crime Categories<br/>- category_id PK<br/>- category_name<br/>- default_severity<br/>- color_hex]
+        
+        DangerZones[Danger Zones<br/>- zone_id PK<br/>- boundary GEOGRAPHY<br/>- risk_level<br/>- crime_count<br/>- density_score]
+        
+        ZoneHistory[Zone Crime History<br/>- history_id PK<br/>- zone_id FK<br/>- date<br/>- incident_count<br/>- severity_total]
+    end
+    
+    Incidents -->|N:1| Sources
+    Incidents -->|N:1| Categories
+    DangerZones -->|1:N| ZoneHistory
+    
+    style Incidents fill:#FFF9C4,stroke:#FBC02D,stroke-width:3px
+    style Sources fill:#E0F2F1,stroke:#00897B,stroke-width:2px
+    style Categories fill:#F3E5F5,stroke:#8E24AA,stroke-width:2px
+    style DangerZones fill:#FFECB3,stroke:#FFA000,stroke-width:3px
+    style ZoneHistory fill:#E8EAF6,stroke:#5C6BC0,stroke-width:2px
+```
 
+## 3. DATABASE SCHEMA OVERVIEW WITH STATISTICS
 
+```mermaid
+graph LR
+    subgraph Core Tables
+        T1[Users<br/>8 indexes<br/>12 columns]
+        T2[User Locations<br/>5 indexes<br/>11 columns]
+        T3[Emergency Alerts<br/>6 indexes<br/>14 columns]
+    end
+    
+    subgraph Crime Data
+        T4[Crime Incidents<br/>7 indexes<br/>13 columns]
+        T5[Danger Zones<br/>4 indexes<br/>9 columns]
+    end
+    
+    subgraph Support Tables
+        T6[Emergency Contacts<br/>3 indexes<br/>9 columns]
+        T7[Notification Logs<br/>4 indexes<br/>10 columns]
+        T8[Alert Responses<br/>5 indexes<br/>11 columns]
+    end
+    
+    T1 -.->|Foreign Key| T2
+    T1 -.->|Foreign Key| T3
+    T1 -.->|Foreign Key| T6
+    T3 -.->|Foreign Key| T8
+    T4 -.->|Spatial| T5
+    
+    style T1 fill:#E3F2FD,stroke:#1976D2,stroke-width:3px
+    style T2 fill:#C8E6C9,stroke:#388E3C,stroke-width:2px
+    style T3 fill:#FFEBEE,stroke:#D32F2F,stroke-width:3px
+    style T4 fill:#FFF9C4,stroke:#FBC02D,stroke-width:2px
+    style T5 fill:#FFECB3,stroke:#FFA000,stroke-width:2px
+    style T6 fill:#F3E5F5,stroke:#7B1FA2,stroke-width:2px
+    style T7 fill:#E0F2F1,stroke:#00897B,stroke-width:2px
+    style T8 fill:#E8F5E9,stroke:#43A047,stroke-width:2px
+```
+## 4. KEY RELATIONSHIPS & CARDINALITY
+```mermaid
+graph TD
+    U[Users] -->|1 to Many| UL[User Locations]
+    U -->|1 to Many| EC[Emergency Contacts]
+    U -->|1 to Many| EA[Emergency Alerts]
+    U -->|1 to Many| AR[Alert Responses as Responder]
+    U -->|1 to Many| UR[User Reports]
+    U -->|1 to Many| NL[Notification Logs]
+    
+    EA -->|1 to Many| AR2[Alert Responses]
+    EA -->|1 to Many| AE[Alert Escalations]
+    EA -->|1 to Many| ATE[Alert Timeline Events]
+    
+    CI[Crime Incidents] -->|Many to 1| CS[Crime Sources]
+    CI -->|Many to 1| CC[Crime Categories]
+    
+    DZ[Danger Zones] -->|1 to Many| ZH[Zone Crime History]
+    
+    style U fill:#1976D2,stroke:#0D47A1,stroke-width:4px,color:#FFF
+    style EA fill:#D32F2F,stroke:#B71C1C,stroke-width:4px,color:#FFF
+    style CI fill:#F57C00,stroke:#E65100,stroke-width:3px,color:#FFF
+    style DZ fill:#FFA000,stroke:#FF6F00,stroke-width:3px,color:#FFF
+```
+## 5. SPATIAL INDEXES & GEOSPATIAL TABLES
+```mermaid
+graph TB
+    subgraph PostGIS Spatial Tables
+        UL[user_locations<br/>GIST location]
+        EA[emergency_alerts<br/>GIST alert_location]
+        CI[crime_incidents<br/>GIST location]
+        DZ[danger_zones<br/>GIST boundary]
+        UR[user_reports<br/>GIST report_location]
+    end
+    
+    subgraph Spatial Operations
+        STContains[ST_Contains<br/>Point in Polygon]
+        STDistance[ST_Distance<br/>Proximity Search]
+        STDWithin[ST_DWithin<br/>Radius Query]
+        STBuffer[ST_Buffer<br/>Create Zones]
+    end
+    
+    UL -.->|Query| STDWithin
+    EA -.->|Query| STDWithin
+    CI -.->|Query| STContains
+    DZ -.->|Query| STContains
+    
+    style UL fill:#C8E6C9,stroke:#388E3C,stroke-width:2px
+    style EA fill:#FFCDD2,stroke:#D32F2F,stroke-width:2px
+    style CI fill:#FFF9C4,stroke:#F57C00,stroke-width:2px
+    style DZ fill:#FFE0B2,stroke:#F57C00,stroke-width:2px
+    style STContains fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
+    style STDistance fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
+    style STDWithin fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
+    style STBuffer fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
+```
 
+## 6. TABLE SIZES & GROWTH ESTIMATES
+```mermaid
+graph LR
+    subgraph High Volume Tables
+        T1[user_locations<br/>~10M rows/month<br/>Partitioned by month]
+        T2[notification_logs<br/>~5M rows/month<br/>Partitioned by week]
+        T3[alert_timeline_events<br/>~500K rows/month<br/>Partitioned by month]
+    end
+    
+    subgraph Medium Volume
+        T4[emergency_alerts<br/>~100K rows/month<br/>Standard]
+        T5[crime_incidents<br/>~50K rows/month<br/>Standard]
+    end
+    
+    subgraph Low Volume
+        T6[users<br/>~10K rows/month<br/>Standard]
+        T7[danger_zones<br/>~1K rows/month<br/>Standard]
+    end
+    
+    style T1 fill:#FFEBEE,stroke:#C62828,stroke-width:3px
+    style T2 fill:#FFEBEE,stroke:#C62828,stroke-width:3px
+    style T3 fill:#FFEBEE,stroke:#C62828,stroke-width:3px
+    style T4 fill:#FFF9C4,stroke:#F57C00,stroke-width:2px
+    style T5 fill:#FFF9C4,stroke:#F57C00,stroke-width:2px
+    style T6 fill:#E8F5E9,stroke:#43A047,stroke-width:2px
+    style T7 fill:#E8F5E9,stroke:#43A047,stroke-width:2px
+```
+# 7. INDEXING STRATEGY
+## Primary Indexes (BTREE)
+users:
+  - PRIMARY KEY (user_id)
+  - UNIQUE INDEX (phone_number)
+  - UNIQUE INDEX (email)
+  - INDEX (account_status) WHERE status = 'active'
+  - INDEX (last_active_at) WHERE last_active > NOW() - 7 days
 
+emergency_alerts:
+  - PRIMARY KEY (alert_id)
+  - INDEX (user_id, created_at DESC)
+  - INDEX (alert_status, created_at DESC)
+  - INDEX (created_at) WHERE alert_status IN ('active', 'responding')
+
+crime_incidents:
+  - PRIMARY KEY (incident_id)
+  - INDEX (occurred_at DESC)
+  - INDEX (incident_type, severity)
+  - INDEX (verified) WHERE verified = true
+
+## Spatial Indexes (GIST)
+user_locations:
+  - GIST INDEX (location)
+  - Supports: ST_DWithin, ST_Distance queries
+
+emergency_alerts:
+  - GIST INDEX (alert_location)
+  - Supports: Radius expansion queries
+
+crime_incidents:
+  - GIST INDEX (location)
+  - Supports: Heatmap aggregation
+
+danger_zones:
+  - GIST INDEX (boundary)
+  - Supports: ST_Contains queries
+Composite Indexes
+
+## alert_responses:
+  - INDEX (alert_id, response_status, responded_at)
+  - INDEX (responder_user_id, responded_at DESC)
+
+notification_logs:
+  - INDEX (user_id, sent_at DESC)
+  - INDEX (notification_type, status, sent_at)
+
+## 8. TABLE PARTITIONING STRATEGY
+
+```mermaid
+graph TB
+    subgraph Partitioned Tables
+        UL[user_locations<br/>Partition by: recorded_at<br/>Strategy: Monthly<br/>Retention: 90 days]
+        
+        NL[notification_logs<br/>Partition by: sent_at<br/>Strategy: Weekly<br/>Retention: 30 days]
+        
+        ATE[alert_timeline_events<br/>Partition by: occurred_at<br/>Strategy: Monthly<br/>Retention: 365 days]
+    end
+    
+    subgraph Partition Management
+        AutoDrop[Auto-drop old partitions<br/>pg_cron scheduled job]
+        AutoCreate[Auto-create future partitions<br/>7 days ahead]
+    end
+    
+    UL --> AutoDrop
+    NL --> AutoDrop
+    ATE --> AutoDrop
+    
+    UL --> AutoCreate
+    NL --> AutoCreate
+    ATE --> AutoCreate
+    
+    style UL fill:#E3F2FD,stroke:#1976D2,stroke-width:2px
+    style NL fill:#FFF3E0,stroke:#F57C00,stroke-width:2px
+    style ATE fill:#E8F5E9,stroke:#43A047,stroke-width:2px
+    style AutoDrop fill:#FFEBEE,stroke:#D32F2F,stroke-width:2px
+    style AutoCreate fill:#E8F5E9,stroke:#388E3C,stroke-width:2px
+```
+## 9. MATERIALIZED VIEWS FOR PERFORMANCE
+```sql
+-- Danger Zones Materialized View
+CREATE MATERIALIZED VIEW mv_danger_zones AS
+SELECT
+    ST_SnapToGrid(location::geometry, 0.01) as grid_cell,
+    COUNT(*) as incident_count,
+    SUM(severity) as severity_total,
+    AVG(severity) as avg_severity,
+    MAX(occurred_at) as last_incident
+FROM crime_incidents
+WHERE occurred_at > NOW() - INTERVAL '30 days'
+GROUP BY grid_cell;
+
+CREATE INDEX ON mv_danger_zones USING GIST(grid_cell);
+REFRESH MATERIALIZED VIEW CONCURRENTLY mv_danger_zones;
+
+-- User Activity Summary
+CREATE MATERIALIZED VIEW mv_user_activity AS
+SELECT
+    user_id,
+    COUNT(DISTINCT DATE(recorded_at)) as active_days,
+    MAX(recorded_at) as last_location_update,
+    COUNT(*) as total_locations
+FROM user_locations
+WHERE recorded_at > NOW() - INTERVAL '30 days'
+GROUP BY user_id;
+
+CREATE INDEX ON mv_user_activity(user_id);
+REFRESH MATERIALIZED VIEW CONCURRENTLY mv_user_activity;
+```
+## 10. DATABASE CONSTRAINTS & BUSINESS RULES
 ```mermaid
 graph TB
     subgraph Data Integrity Rules
@@ -300,4 +552,55 @@ graph TB
     style D1 fill:#FFCDD2,stroke:#C62828,stroke-width:2px
     style D2 fill:#FFCDD2,stroke:#C62828,stroke-width:2px
 ```
+## 11. COMPLETE TABLE SUMMARY
 
+| Table Name | Primary Key | Foreign Keys | Spatial | Partitioned | Indexes |
+|------------|-------------|--------------|---------|-------------|---------|
+| users | user_id | - | No | No | 8 |
+| user_locations | location_id | user_id | Yes (GEOGRAPHY) | Yes (monthly) | 5 |
+| emergency_contacts | contact_id | user_id | No | No | 3 |
+| emergency_alerts | alert_id | user_id | Yes (GEOGRAPHY) | No | 6 |
+| alert_responses | response_id | alert_id, responder_user_id | Yes (GEOGRAPHY) | No | 5 |
+| alert_escalations | escalation_id | alert_id | No | No | 3 |
+| alert_timeline_events | event_id | alert_id | No | Yes (monthly) | 4 |
+| crime_incidents | incident_id | source_id, category_id | Yes (GEOGRAPHY) | No | 7 |
+| crime_sources | source_id | - | No | No | 2 |
+| crime_categories | category_id | - | No | No | 2 |
+| danger_zones | zone_id | - | Yes (GEOGRAPHY) | No | 4 |
+| zone_crime_history | history_id | zone_id | No | No | 3 |
+| user_reports | report_id | user_id | Yes (GEOGRAPHY) | No | 4 |
+| notification_logs | notification_id | user_id | No | Yes (weekly) | 4 |
+| user_sessions | session_id | user_id | No | No | 3 |
+
+**Total Tables:** 15  
+**Total Indexes:** 67 (including 5 spatial GIST indexes)  
+**Partitioned Tables:** 3  
+**Tables with Spatial Data:** 6  
+
+---
+
+## 12. QUERY PERFORMANCE OPTIMIZATION
+
+### Most Frequent Queries:
+```sql
+-- 1. Find nearby users (Geofencing)
+SELECT user_id, ST_Distance(location, $1) as distance
+FROM user_locations
+WHERE ST_DWithin(location, $1, $2)
+AND recorded_at > NOW() - INTERVAL '5 minutes'
+ORDER BY distance
+LIMIT 50;
+
+-- 2. Get danger zone for location
+SELECT zone_id, risk_level, crime_count
+FROM danger_zones
+WHERE ST_Contains(boundary, $1)
+LIMIT 1;
+
+-- 3. Active alerts in area
+SELECT alert_id, user_id, alert_status, current_radius
+FROM emergency_alerts
+WHERE alert_status IN ('active', 'responding')
+AND ST_DWithin(alert_location, $1, $2)
+ORDER BY created_at DESC;
+```
