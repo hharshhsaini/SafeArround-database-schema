@@ -1,4 +1,4 @@
-# SafeAround — Complete API Documentation
+# SafeAround - Complete API Documentation
 
 ## RESTful API & WebSocket Specification
 
